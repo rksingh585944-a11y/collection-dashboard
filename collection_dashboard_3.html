@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Collection Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #0d1117; --surface: #161b22; --surface2: #1c2333;
+    --border: #30363d; --text: #e6edf3; --muted: #8b949e;
+    --paid: #3fb950; --unpaid: #f85149; --accent: #58a6ff;
+    --gold: #d29922; --card-radius: 10px;
+  }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; min-height: 100vh; }
+
+  .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 18px 28px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+  .header-left h1 { font-size: 18px; font-weight: 700; color: var(--text); }
+  .header-left span { font-size: 12px; color: var(--muted); display: block; margin-top: 2px; }
+  .header-right { display: flex; align-items: center; gap: 14px; }
+  .last-updated { font-size: 12px; color: var(--muted); }
+  .live-badge { display: inline-flex; align-items: center; gap: 5px; background: rgba(63,185,80,0.15); color: var(--paid); border: 1px solid rgba(63,185,80,0.3); padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--paid); animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .filters { padding: 14px 28px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .filter-label { font-size: 12px; color: var(--muted); font-weight: 600; }
+  select { background: var(--surface2); color: var(--text); border: 1px solid var(--border); padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+
+  .main { padding: 24px 28px; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 24px; }
+  .kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--card-radius); padding: 18px 20px; position: relative; overflow: hidden; }
+  .kpi-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+  .kpi-card.blue::before { background: var(--accent); }
+  .kpi-card.green::before { background: var(--paid); }
+  .kpi-card.red::before { background: var(--unpaid); }
+  .kpi-card.gold::before { background: var(--gold); }
+  .kpi-card.purple::before { background: #bc8cff; }
+  .kpi-label { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .kpi-value { font-size: 26px; font-weight: 700; line-height: 1; margin-bottom: 4px; }
+  .kpi-card.blue .kpi-value { color: var(--accent); }
+  .kpi-card.green .kpi-value { color: var(--paid); }
+  .kpi-card.red .kpi-value { color: var(--unpaid); }
+  .kpi-card.gold .kpi-value { color: var(--gold); }
+  .kpi-card.purple .kpi-value { color: #bc8cff; }
+  .kpi-sub { font-size: 12px; color: var(--muted); }
+  .progress-wrap { margin-top: 6px; }
+  .progress-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--paid), #2ea043); border-radius: 2px; transition: width 0.6s ease; }
+
+  .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--card-radius); padding: 20px; }
+  .chart-card.full { grid-column: 1 / -1; }
+  .chart-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .chart-title span { font-size: 11px; color: var(--muted); font-weight: 400; }
+  .chart-wrap { position: relative; height: 240px; }
+  .chart-wrap.tall { height: 300px; }
+
+  .table-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--card-radius); overflow: hidden; margin-bottom: 24px; }
+  .table-header { padding: 16px 20px; font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: var(--surface2); color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 16px; text-align: left; border-bottom: 1px solid var(--border); }
+  td { padding: 10px 16px; border-bottom: 1px solid rgba(48,54,61,0.5); font-size: 13px; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .badge.paid { background: rgba(63,185,80,0.15); color: var(--paid); }
+  .badge.unpaid { background: rgba(248,81,73,0.15); color: var(--unpaid); }
+
+  .loading-state { text-align: center; padding: 80px 20px; color: var(--muted); }
+  .loading-state .icon { font-size: 48px; margin-bottom: 16px; animation: spin 1.5s linear infinite; display: inline-block; }
+  @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+  .loading-state h2 { font-size: 16px; margin-bottom: 8px; color: var(--text); }
+  .error-state { text-align: center; padding: 80px 20px; color: var(--muted); }
+  .error-state .icon { font-size: 48px; margin-bottom: 16px; }
+  .error-state h2 { font-size: 16px; margin-bottom: 8px; color: var(--unpaid); }
+  .error-state p { font-size: 13px; line-height: 1.6; }
+
+  @media (max-width: 768px) {
+    .main { padding: 16px; } .header { padding: 14px 16px; } .filters { padding: 12px 16px; }
+    .charts-grid { grid-template-columns: 1fr; } .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <h1>📊 Collection Dashboard</h1>
+    <span id="periodLabel">Loading data...</span>
+  </div>
+  <div class="header-right">
+    <span class="last-updated" id="lastUpdated">–</span>
+    <div class="live-badge"><div class="live-dot"></div>LIVE</div>
+  </div>
+</div>
+
+<div class="filters" id="filtersBar" style="display:none">
+  <span class="filter-label">Filter:</span>
+  <select id="filterNBFC" onchange="applyFilters()">
+    <option value="ALL">All NBFCs</option>
+  </select>
+  <select id="filterNewOld" onchange="applyFilters()">
+    <option value="ALL">New + Old</option>
+    <option value="NEW">New</option>
+    <option value="OLD">Old</option>
+  </select>
+  <select id="filterMonth" onchange="applyFilters()">
+    <option value="ALL">All Months</option>
+  </select>
+</div>
+
+<div class="main" id="mainContent">
+  <div class="loading-state">
+    <div class="icon">⏳</div>
+    <h2>Loading Data...</h2>
+    <p>Fetching latest collection data from server.</p>
+  </div>
+</div>
+
+<script>
+// ── CONFIG — SIRF YE LINE BADALNI HAI ──
+// GitHub pe upload karne ke baad apna username aur repo naam yahan daalo
+const DATA_URL = 'data.xlsx';
+// ────────────────────────────────────────
+
+let rawData = [];
+let filteredData = [];
+let activeCharts = [];
+
+// ── AUTO FETCH ON LOAD ──
+window.addEventListener('load', fetchData);
+
+// ── FETCH DATA FROM SERVER ──
+async function fetchData() {
+  try {
+    showLoading();
+    const res = await fetch(DATA_URL + '?t=' + Date.now()); // cache bust
+    if (!res.ok) throw new Error('File not found: ' + res.status);
+    const buffer = await res.arrayBuffer();
+    const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    rawData = XLSX.utils.sheet_to_json(ws);
+    rawData = rawData.map(row => {
+      const clean = {};
+      Object.keys(row).forEach(k => clean[k.trim()] = row[k]);
+      return clean;
+    });
+    populateFilters();
+    applyFilters();
+    document.getElementById('filtersBar').style.display = 'flex';
+    document.getElementById('lastUpdated').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+  } catch(err) {
+    showError(err.message);
+  }
+}
+
+// ── AUTO REFRESH EVERY 5 MINUTES ──
+setInterval(fetchData, 5 * 60 * 1000);
+
+function showLoading() {
+  document.getElementById('mainContent').innerHTML = `
+    <div class="loading-state">
+      <div class="icon">⏳</div>
+      <h2>Loading Data...</h2>
+      <p>Fetching latest collection data.</p>
+    </div>`;
+}
+
+function showError(msg) {
+  document.getElementById('mainContent').innerHTML = `
+    <div class="error-state">
+      <div class="icon">⚠️</div>
+      <h2>Data Load Failed</h2>
+      <p>${msg}<br><br>
+      Make sure <b>data.xlsx</b> is uploaded in the same GitHub repository folder.</p>
+    </div>`;
+  document.getElementById('periodLabel').textContent = 'Error loading data';
+}
+
+function parseDate(val) {
+  if (!val) return null;
+  if (val instanceof Date) return val;
+  const d = new Date(val);
+  return isNaN(d) ? null : d;
+}
+
+function fmtN(n) {
+  if (n >= 1e7) return '₹' + (n/1e7).toFixed(2) + ' Cr';
+  if (n >= 1e5) return '₹' + (n/1e5).toFixed(2) + ' L';
+  return '₹' + n.toLocaleString('en-IN');
+}
+function fmtC(n) { return n.toLocaleString('en-IN'); }
+
+function populateFilters() {
+  const nbfcSel = document.getElementById('filterNBFC');
+  nbfcSel.innerHTML = '<option value="ALL">All NBFCs</option>';
+  [...new Set(rawData.map(r => r['NBFC']).filter(Boolean))].forEach(n => {
+    const o = document.createElement('option');
+    o.value = n; o.textContent = n; nbfcSel.appendChild(o);
+  });
+
+  const monthSel = document.getElementById('filterMonth');
+  monthSel.innerHTML = '<option value="ALL">All Months</option>';
+  [...new Set(rawData.map(r => {
+    const d = parseDate(r['Original due date']);
+    return d ? d.toLocaleString('default', { month: 'short', year: 'numeric' }) : null;
+  }).filter(Boolean))].forEach(m => {
+    const o = document.createElement('option');
+    o.value = m; o.textContent = m; monthSel.appendChild(o);
+  });
+}
+
+function applyFilters() {
+  const nbfc = document.getElementById('filterNBFC').value;
+  const newold = document.getElementById('filterNewOld').value;
+  const month = document.getElementById('filterMonth').value;
+
+  filteredData = rawData.filter(r => {
+    if (nbfc !== 'ALL' && r['NBFC'] !== nbfc) return false;
+    if (newold !== 'ALL' && r['New/Old'] !== newold) return false;
+    if (month !== 'ALL') {
+      const d = parseDate(r['Original due date']);
+      if (!d) return false;
+      if (d.toLocaleString('default', { month: 'short', year: 'numeric' }) !== month) return false;
+    }
+    return true;
+  });
+  renderDashboard();
+}
+
+function destroyCharts() {
+  activeCharts.forEach(c => c.destroy());
+  activeCharts = [];
+}
+
+function renderDashboard() {
+  destroyCharts();
+  const data = filteredData;
+  if (!data.length) {
+    document.getElementById('mainContent').innerHTML = '<div class="error-state"><div class="icon">🔍</div><h2>No data for selected filters</h2></div>';
+    return;
+  }
+
+  const total = data.length;
+  const paidRows = data.filter(r => r['Status'] === 'PAID');
+  const paid = paidRows.length;
+  const unpaid = total - paid;
+  const conversion = (paid / total * 100).toFixed(1);
+  const paidAmt = paidRows.reduce((s, r) => s + (parseFloat(r['Collection amount']) || 0), 0);
+  const totalDue = data.reduce((s, r) => s + (parseFloat(r['Due Amt on Curr Date']) || 0), 0);
+
+  // Period label from Original due date
+  const dates = data.map(r => parseDate(r['Original due date'])).filter(Boolean);
+  if (dates.length) {
+    const mn = new Date(Math.min(...dates));
+    const mx = new Date(Math.max(...dates));
+    document.getElementById('periodLabel').textContent =
+      mn.toLocaleDateString('en-IN', {day:'2-digit',month:'short'}) + ' – ' +
+      mx.toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'});
+  }
+
+  // Day-wise (Collection date, PAID only)
+  const dayMap = {};
+  paidRows.forEach(r => {
+    const d = parseDate(r['Collection date']);
+    if (!d) return;
+    const key = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+    if (!dayMap[key]) dayMap[key] = { count: 0, amount: 0, dateObj: d };
+    dayMap[key].count++;
+    dayMap[key].amount += parseFloat(r['Collection amount']) || 0;
+  });
+  const dayKeys = Object.keys(dayMap).sort((a, b) => dayMap[a].dateObj - dayMap[b].dateObj);
+  const dayCounts = dayKeys.map(k => dayMap[k].count);
+  const dayAmts = dayKeys.map(k => Math.round(dayMap[k].amount / 1e5));
+
+  // NBFC
+  const nbfcMap = {};
+  data.forEach(r => {
+    const n = (r['NBFC'] || 'Unknown').replace('FINANCIAL SERVICES','').replace('PRIVATE LIMITED','').replace('PVT LTD','').trim();
+    if (!nbfcMap[n]) nbfcMap[n] = { total: 0, paid: 0, amount: 0 };
+    nbfcMap[n].total++;
+    if (r['Status'] === 'PAID') { nbfcMap[n].paid++; nbfcMap[n].amount += parseFloat(r['Collection amount']) || 0; }
+  });
+
+  // New/Old
+  const novMap = {};
+  data.forEach(r => {
+    const k = r['New/Old'] || 'Unknown';
+    if (!novMap[k]) novMap[k] = { total: 0, paid: 0 };
+    novMap[k].total++;
+    if (r['Status'] === 'PAID') novMap[k].paid++;
+  });
+
+  document.getElementById('mainContent').innerHTML = `
+    <div class="kpi-grid">
+      <div class="kpi-card blue"><div class="kpi-label">Total Cases</div><div class="kpi-value">${fmtC(total)}</div><div class="kpi-sub">This period</div></div>
+      <div class="kpi-card green">
+        <div class="kpi-label">Paid</div><div class="kpi-value">${fmtC(paid)}</div>
+        <div class="kpi-sub">${fmtN(paidAmt)} collected</div>
+        <div class="progress-wrap"><div class="progress-bar"><div class="progress-fill" style="width:${conversion}%"></div></div></div>
+      </div>
+      <div class="kpi-card red"><div class="kpi-label">Unpaid</div><div class="kpi-value">${fmtC(unpaid)}</div><div class="kpi-sub">${(100-parseFloat(conversion)).toFixed(1)}% of total</div></div>
+      <div class="kpi-card gold"><div class="kpi-label">Conversion %</div><div class="kpi-value">${conversion}%</div><div class="kpi-sub">Paid / Total cases</div></div>
+      <div class="kpi-card purple"><div class="kpi-label">Total Due</div><div class="kpi-value">${fmtN(totalDue)}</div><div class="kpi-sub">Collected ${fmtN(paidAmt)}</div></div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card full"><div class="chart-title">Day-wise Collection Movement <span>Cases Paid per Day</span></div><div class="chart-wrap tall"><canvas id="chartDaywise"></canvas></div></div>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card"><div class="chart-title">Paid vs Unpaid <span>Case count</span></div><div class="chart-wrap"><canvas id="chartPaidUnpaid"></canvas></div></div>
+      <div class="chart-card"><div class="chart-title">NBFC-wise Conversion <span>%</span></div><div class="chart-wrap"><canvas id="chartNBFC"></canvas></div></div>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card"><div class="chart-title">New vs Old Portfolio <span>Case count</span></div><div class="chart-wrap"><canvas id="chartNewOld"></canvas></div></div>
+      <div class="chart-card"><div class="chart-title">Daily Collection Amount <span>₹ Lakhs</span></div><div class="chart-wrap"><canvas id="chartDayAmt"></canvas></div></div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-header"><span>NBFC-wise Summary</span><span style="color:var(--muted);font-size:12px">${Object.keys(nbfcMap).length} NBFCs</span></div>
+      <table>
+        <thead><tr><th>NBFC</th><th>Total</th><th>Paid</th><th>Unpaid</th><th>Conversion</th><th>Amount Collected</th></tr></thead>
+        <tbody>
+          ${Object.entries(nbfcMap).map(([n,v]) => `
+            <tr>
+              <td>${n}</td><td>${fmtC(v.total)}</td>
+              <td><span class="badge paid">${fmtC(v.paid)}</span></td>
+              <td><span class="badge unpaid">${fmtC(v.total-v.paid)}</span></td>
+              <td style="color:var(--gold);font-weight:600">${(v.paid/v.total*100).toFixed(1)}%</td>
+              <td>${fmtN(v.amount)}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+
+  const cd = { responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{ labels:{ color:'#8b949e', font:{size:11} } } },
+    scales:{ x:{ ticks:{color:'#8b949e',font:{size:10}}, grid:{color:'rgba(48,54,61,0.5)'} }, y:{ ticks:{color:'#8b949e',font:{size:10}}, grid:{color:'rgba(48,54,61,0.5)'} } }
+  };
+
+  activeCharts.push(new Chart(document.getElementById('chartDaywise'), {
+    type:'bar', data:{ labels:dayKeys, datasets:[{ label:'Cases Paid', data:dayCounts, backgroundColor:'rgba(88,166,255,0.7)', borderColor:'#58a6ff', borderWidth:1, borderRadius:3 }] },
+    options:{...cd, plugins:{legend:{display:false}}}
+  }));
+
+  activeCharts.push(new Chart(document.getElementById('chartPaidUnpaid'), {
+    type:'doughnut', data:{ labels:['Paid','Unpaid'], datasets:[{ data:[paid,unpaid], backgroundColor:['rgba(63,185,80,0.8)','rgba(248,81,73,0.8)'], borderColor:['#3fb950','#f85149'], borderWidth:2 }] },
+    options:{ responsive:true, maintainAspectRatio:false, cutout:'65%', plugins:{ legend:{ position:'bottom', labels:{color:'#8b949e',padding:16,font:{size:12}} } } }
+  }));
+
+  const nbfcNames = Object.keys(nbfcMap);
+  activeCharts.push(new Chart(document.getElementById('chartNBFC'), {
+    type:'bar', data:{ labels:nbfcNames, datasets:[{ label:'Conversion %', data:nbfcNames.map(n=>(nbfcMap[n].paid/nbfcMap[n].total*100).toFixed(1)), backgroundColor:['rgba(210,153,34,0.8)','rgba(88,166,255,0.8)','rgba(188,140,255,0.8)'], borderRadius:4 }] },
+    options:{...cd, indexAxis:'y', plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:'#8b949e',callback:v=>v+'%'},grid:{color:'rgba(48,54,61,0.5)'},max:100}, y:{ticks:{color:'#8b949e',font:{size:10}},grid:{display:false}} }}
+  }));
+
+  const nk = Object.keys(novMap);
+  activeCharts.push(new Chart(document.getElementById('chartNewOld'), {
+    type:'bar', data:{ labels:nk, datasets:[
+      { label:'Paid', data:nk.map(k=>novMap[k].paid), backgroundColor:'rgba(63,185,80,0.8)', borderRadius:4 },
+      { label:'Unpaid', data:nk.map(k=>novMap[k].total-novMap[k].paid), backgroundColor:'rgba(248,81,73,0.8)', borderRadius:4 }
+    ]}, options:{...cd}
+  }));
+
+  activeCharts.push(new Chart(document.getElementById('chartDayAmt'), {
+    type:'line', data:{ labels:dayKeys, datasets:[{ label:'₹ Lakhs', data:dayAmts, borderColor:'#d29922', backgroundColor:'rgba(210,153,34,0.1)', fill:true, tension:0.4, pointRadius:3, pointBackgroundColor:'#d29922' }] },
+    options:{...cd, plugins:{legend:{display:false}}}
+  }));
+}
+</script>
+</body>
+</html>
