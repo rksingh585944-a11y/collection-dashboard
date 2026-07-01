@@ -340,12 +340,14 @@ function renderDashboard() {
         <thead><tr><th>Due Date</th><th>Total</th><th>Paid</th><th>Unpaid</th><th>Conversion %</th></tr></thead>
         <tbody>
           ${dueKeys.map(k => tRow([
+
             k,
             fmtC(dueMap[k].total),
             paidBadge(dueMap[k].paid),
             unpaidBadge(dueMap[k].total - dueMap[k].paid),
             convBadge((dueMap[k].paid/dueMap[k].total*100).toFixed(1))
           ])).join('')}
+          <tr style="background:var(--surface2);font-weight:700;border-top:2px solid var(--gold)"><td style="color:var(--gold)">Grand Total</td><td style="color:var(--accent)">${fmtC(total)}</td><td><span class="badge paid">${fmtC(paid)}</span></td><td><span class="badge unpaid">${fmtC(unpaid)}</span></td><td class="conv-val">${conversion}%</td></tr>
         </tbody>
       </table>
     </div>
@@ -368,6 +370,7 @@ function renderDashboard() {
             unpaidBadge(tenMap[b].total - tenMap[b].paid),
             convBadge((tenMap[b].paid/tenMap[b].total*100).toFixed(1))
           ])).join('')}
+          <tr style="background:var(--surface2);font-weight:700;border-top:2px solid var(--gold)"><td style="color:var(--gold)">Grand Total</td><td style="color:var(--accent)">${fmtC(total)}</td><td><span class="badge paid">${fmtC(paid)}</span></td><td><span class="badge unpaid">${fmtC(unpaid)}</span></td><td class="conv-val">${conversion}%</td></tr>
         </tbody>
       </table>
     </div>
@@ -391,6 +394,7 @@ function renderDashboard() {
             convBadge((v.paid/v.total*100).toFixed(1)),
             fmtN(v.amount)
           ])).join('')}
+          <tr style="background:var(--surface2);font-weight:700;border-top:2px solid var(--gold)"><td style="color:var(--gold)">Grand Total</td><td style="color:var(--accent)">${fmtC(total)}</td><td><span class="badge paid">${fmtC(paid)}</span></td><td><span class="badge unpaid">${fmtC(unpaid)}</span></td><td class="conv-val">${conversion}%</td><td>${fmtN(paidAmt)}</td></tr>
         </tbody>
       </table>
     </div>
@@ -465,4 +469,3 @@ function renderDashboard() {
 </script>
 </body>
 </html>
-ś
